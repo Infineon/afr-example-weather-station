@@ -1,0 +1,4 @@
+[submodule "emwin"]
+	path = libs/emwin
+	url = https://github.com/cypresssemiconductorco/emwin.git
+	branch = latest-v5.X
