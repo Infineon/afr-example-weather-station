@@ -126,9 +126,9 @@ Note:
 
 */
 #define OS_SendString(s) GUI_USE_PARA(s)
-void GUI_X_Log     (const char *s) { printf(s); }
-void GUI_X_Warn    (const char *s) { printf(s); }
-void GUI_X_ErrorOut(const char *s) { printf(s); }
+void GUI_X_Log     (const char *s) { printf("%s",s); }
+void GUI_X_Warn    (const char *s) { printf("%s",s); }
+void GUI_X_ErrorOut(const char *s) { printf("%s",s); }
 
 /*********************************************************************
 *

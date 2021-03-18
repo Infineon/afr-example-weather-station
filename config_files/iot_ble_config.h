@@ -38,6 +38,4 @@
 /* Include BLE default config at bottom to set the default values for the configurations which are not overridden */
 #include "iot_ble_config_defaults.h"
 
-#define bleconfigENABLE_GATT_DEMO ( 1 )
-
 #endif /* _IOT_BLE_CONFIG_H_ */

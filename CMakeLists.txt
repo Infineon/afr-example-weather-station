@@ -1,67 +1,32 @@
-#
-# Application specific CMakeLists.txt file
-#   Included from vendors/cypress/psoc6/cmake/cy_kit_utils.cmake
-#
-# Add app specific sources, defines, includes here
-#
-#--------------------------------------------------------------------
-# This app dir
-get_filename_component(CY_APP_DIR "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
+# To build, run the following commands in current directory:
+# cmake -DVENDOR=cypress -DBOARD=CY8CPROTO_062_4343W -DCOMPILER=arm-gcc -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=../../../tools/cmake/toolchains/arm-gcc.cmake
+# cmake --build build
 
-#set(COMPONENTS "$(COMPONENTS);EMWIN_OSNTS" CACHE STRING "" FORCE)
+cmake_minimum_required(VERSION 3.13)
+
+# Configure compiler assembler for code outside amazon-freertos source tree
+enable_language(C)
+enable_language(ASM)
+
+set(afr_app_name "afr-example-weather-station")
+project(${afr_app_name})
+
+set(AFR_PATH "${CMAKE_SOURCE_DIR}/../../..")
+set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
+
+string(REPLACE "_" "-" APP_BOARD_NAME "${BOARD}")
+
+add_definitions(-DCY_RETARGET_IO_CONVERT_LF_TO_CRLF)
+
+# Path to this application directory
+get_filename_component(CY_APP_DIR "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
+set(AFR_BOARD "${VENDOR}.${BOARD}" CACHE INTERNAL "")
+set(AFR_TOOLCHAIN "${COMPILER}" CACHE INTERNAL "")
+
+# Path to EMWIN directory
 set(EMWIN_VFP_SELECT "SOFTFP")
 set(EMWIN_LIB_SELECT "EMWIN_OSNTS")
 set(EMWIN_DIR "${CMAKE_CURRENT_LIST_DIR}/libs/emwin")
-
-#--------------------------------------------------------------------
-# Additional defines
-target_compile_definitions(${AFR_TARGET_APP_NAME} PUBLIC
-    "-DCY_RETARGET_IO_CONVERT_LF_TO_CRLF"
-    )
-
-# Application sources
-# ( main.c already included in vendors/cypress/psoc6/cmake/cy_defines.cmake)
-# All the source files in this example directory are recursively added through
-# cy_kit_generate() function in vendors/cypress/psoc6/cmake/cy_kit_utils.cmake.
-# target_sources(${AFR_TARGET_APP_NAME} PUBLIC "" )
-target_sources(${AFR_TARGET_APP_NAME} PUBLIC 
-    "${AFR_DEMOS_DIR}/demo_runner/aws_demo.c"
-    "${AFR_DEMOS_DIR}/demo_runner/iot_demo_freertos.c"
-    "${AFR_DEMOS_DIR}/dev_mode_key_provisioning/src/aws_dev_mode_key_provisioning.c"
-    "${AFR_DEMOS_DIR}/network_manager/aws_iot_network_manager.c"
-)
-
-# Additional include dirs
-# target_include_directories(${AFR_TARGET_APP_NAME} PUBLIC "" )
-target_include_directories(${AFR_TARGET_APP_NAME} PUBLIC 
-    "${CMAKE_CURRENT_LIST_DIR}/source"
-    "${CMAKE_CURRENT_LIST_DIR}/source/cJSON"
-    "${CMAKE_CURRENT_LIST_DIR}/source/cy8ckit_032_oled"
-    "${CMAKE_CURRENT_LIST_DIR}/source/cy8ckit_032_oled/driver"
-    "${CMAKE_CURRENT_LIST_DIR}/source/cy8ckit_032_oled/emwin_config"
-    "${CMAKE_CURRENT_LIST_DIR}/libs/emwin/GUI/Include"
-    "${EMWIN_DIR}/GUI/COMPONENT_${EMWIN_VFP_SELECT}/COMPONENT_${EMWIN_LIB_SELECT}"
-    "${AFR_DEMOS_DIR}/dev_mode_key_provisioning/include" 
-    "${AFR_DEMOS_DIR}/network_manager"
-    "${AFR_MODULES_DIR}/3rdparty/pkcs11"
-    "${AFR_MODULES_FREERTOS_PLUS_DIR}/standard/pkcs11/include"
-    "${AFR_MODULES_ABSTRACTIONS_DIR}/platform/include/platform"
-    "${AFR_MODULES_C_SDK_DIR}/standard/mqtt/include"
-)              
-
-# AWS Configuration directory. Set if CE is not owning config_files (i.e when  
-# config_files directory is not present inside the CE directory). 
-# When the path is empty, config_files directory inside the CE directory will be
-# used.
-# set(CY_APP_CONFIG_DIR "${cy_board_dir}/aws_demos/config_files")
-
-# AWS IOT Configuration directory. Set if CE is not owning include directory. 
-# (i.e when include directory is not present inside the CE directory.). When the
-# path is empty, include directory inside the CE directory will be used. 
-set(CY_APP_IOT_CONFIG_DIR "${AFR_DEMOS_DIR}/include")
-
-# Additional libs
-# target_link_libraries(${AFR_TARGET_APP_NAME} PUBLIC "<lib_name>" )
 
 if("${AFR_TOOLCHAIN}" STREQUAL "arm-gcc")
     set(LIB_EXTN "a")
@@ -74,25 +39,85 @@ elseif("${AFR_TOOLCHAIN}" STREQUAL "arm-iar")
     set(TOOLCHAIN IAR)
 endif()
 
+# Configure include for freertos config files, aws config files, and cypress psoc6_core header files before add_subdirectory
+set(BOARD_DEMO_DIR "${AFR_PATH}/vendors/cypress/boards/${BOARD}/aws_demos")
+set(BOARD_CY_CODE_DIR "${BOARD_DEMO_DIR}/application_code/cy_code")
+set(additional_include_dirs "${CMAKE_CURRENT_LIST_DIR}/source"
+                            "${CMAKE_CURRENT_LIST_DIR}/source/cJSON"
+                            "${CMAKE_CURRENT_LIST_DIR}/source/cy8ckit_032_oled"
+                            "${CMAKE_CURRENT_LIST_DIR}/source/cy8ckit_032_oled/driver"
+                            "${CMAKE_CURRENT_LIST_DIR}/source/cy8ckit_032_oled/emwin_config"
+                            "${CMAKE_CURRENT_LIST_DIR}/libs/emwin/GUI/Include"
+                            "${EMWIN_DIR}/GUI/COMPONENT_${EMWIN_VFP_SELECT}/COMPONENT_${EMWIN_LIB_SELECT}"
+                            "${BOARD_DEMO_DIR}/config_files"
+                            "${BOARD_CY_CODE_DIR}"
+                            "${BOARD_CY_CODE_DIR}/GeneratedSource"
+                            "${AFR_PATH}/demos/include"
+                            "${AFR_PATH}/libraries/abstractions/platform/include/platform"
+                            "${AFR_PATH}/libraries/c_sdk/standard/mqtt/include")
+
+if (EXISTS "${BOARD_CY_CODE_DIR}/SDIO_HOST")
+    list(APPEND additional_include_dirs "${BOARD_CY_CODE_DIR}/SDIO_HOST")
+endif()
+
+set(CY_INCLUDE_DIRS ${additional_include_dirs} CACHE INTERNAL "")
+
+# build amazon-freertos as library
+set(LIB_MODE 1)
+
+# build amazon-freertos
+add_subdirectory(${AFR_PATH} "${AFR_PATH}/build")
+
+# add executable target source files
+add_executable(${afr_app_name} "${CMAKE_SOURCE_DIR}/main.c"
+                               "${CMAKE_SOURCE_DIR}/source/weather_station.c")
+
+include("${AFR_PATH}/vendors/cypress/MTB/psoc6/cmake/cy_defines.cmake")
+include("${AFR_PATH}/vendors/cypress/MTB/psoc6/cmake/cy_create_exe_target.cmake")
+
+# Add board specific files (taken from amazon-freertos/vendors/cypress/boards/${BOARD}/aws_demos/application_code/cy_code).
+# Customize as necessary or replace with another cypress board.
+# The code in ${BSP_DIR}/GeneratedSource is generated by the Configurator tools while saving ${BSP_DIR}/design.modus.
+# Exclude the BSP design.modus when CUSTOM_DESIGN_MODUS is defined.
+cy_find_files(exe_glob_files DIRECTORY "${BOARD_CY_CODE_DIR}")
+if (DEFINED CUSTOM_DESIGN_MODUS)
+    foreach(item ${exe_glob_files})
+        if(${item} MATCHES "GeneratedSource")
+            list(REMOVE_ITEM exe_glob_files ${item})
+        endif(${item} MATCHES "GeneratedSource")
+    endforeach()
+endif()
+cy_get_src(exe_source_files ITEMS "${exe_glob_files}")
+target_sources(${afr_app_name} PUBLIC "${exe_source_files}")
+
+# Application extra sources
+file(GLOB_RECURSE CY_APP_EXTRA_SOURCES "${AFR_PATH}/libraries/c_sdk/standard/mqtt/src/*c"
+                                       "${AFR_PATH}/demos/mqtt/*.c"
+				       "${CMAKE_SOURCE_DIR}/source/*.c")
+target_sources(${afr_app_name} PUBLIC "${CY_APP_EXTRA_SOURCES}" )
+
+# add linker script and map file generation
+cy_add_linker_options(EXE_APP_NAME ${afr_app_name})
+
 file(GLOB CY_APP_LIBS
     "${EMWIN_DIR}/GUI/COMPONENT_${EMWIN_VFP_SELECT}/COMPONENT_${EMWIN_LIB_SELECT}/TOOLCHAIN_${TOOLCHAIN}/*.${LIB_EXTN}"
 )
     
-target_link_libraries(${AFR_TARGET_APP_NAME} PUBLIC
-    "AFR::mqtt"
-    "${CY_APP_LIBS}"
-)  
+target_link_libraries(${afr_app_name} PUBLIC
+    AFR::demo_base
+    AFR::mqtt
+    AFR::wifi::mcu_port
+    psoc6_core
+	"${CY_APP_LIBS}"
+) 
 
-# Extra linker options
-# target_link_options(${AFR_TARGET_APP_NAME} PUBLIC "" )
 
 #--------------------------------------------------------------------
 # Disable AFR aws_demos Modules
 # These AFR aws_demos modules are not needed for the weather station to build
 set(CY_APP_DISABLE_AFR_MODULES
-    "defender"
-    "greengrass"
-    "shadow"
-    "serializer"
+    AFR::defender
+    AFR::greengrass
+    AFR::shadow
+    AFR::serializer
     )
-
